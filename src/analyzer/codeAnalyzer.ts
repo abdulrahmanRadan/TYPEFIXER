@@ -11,11 +11,16 @@ export class CodeAnalyzer {
       const line = lines[i];
 
       // تحليل الأخطاء في الأنواع بناءً على أنماط عامة لجميع الدوال
-      const functionPattern = /\w+\(([^)]+)\);/;
+      const functionPattern = /\w+\(([^)]+)\);?/;
       const match = line.match(functionPattern);
       if (match) {
         const params = match[1].trim();
-        if (!isNaN(Number(params)) && params.includes(".")) {
+        if (/[^0-9\s".,]+/.test(params) && !params.startsWith('"')) {
+          errors.push({
+            line: i,
+            error: "Invalid value: contains unexpected characters",
+          });
+        } else if (!isNaN(Number(params)) && params.includes(".")) {
           errors.push({ line: i, error: "Expected string but got float" });
         } else if (!isNaN(Number(params))) {
           errors.push({ line: i, error: "Expected string but got number" });
@@ -38,7 +43,13 @@ export class CodeAnalyzer {
   suggestFixes(errors: { line: number; error: string }[]): string[] {
     const suggestions: string[] = [];
     for (const error of errors) {
-      if (error.error === "Expected string but got float") {
+      if (error.error === "Invalid value: contains unexpected characters") {
+        suggestions.push(
+          `Line ${
+            error.line + 1
+          }: Convert invalid value to string by wrapping in quotes or correcting the value`
+        );
+      } else if (error.error === "Expected string but got float") {
         suggestions.push(
           `Line ${error.line + 1}: Convert float to string by adding quotes`
         );

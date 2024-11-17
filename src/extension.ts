@@ -12,9 +12,17 @@ export function activate(context: vscode.ExtensionContext) {
       range: vscode.Range
     ): vscode.CodeAction[] {
       const code = document.getText();
+      const suggestionManager = new SuggestionManager();
       const suggestions = suggestionManager.getSuggestions(code);
 
-      return suggestions.map((suggestion) => {
+      // تحليل السطر المحدد فقط
+      const line = document.lineAt(range.start.line).text;
+      // اقتراح واحد للسطر الحالي بناءً على الأخطاء
+      const filteredSuggestions = suggestions.filter((suggestion) =>
+        suggestion.includes(`Line ${range.start.line + 1}`)
+      );
+
+      return filteredSuggestions.map((suggestion) => {
         const newText = getNewText(suggestion, document, range);
         const action = new vscode.CodeAction(
           `${newText}`,
@@ -66,32 +74,39 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 function applySuggestion(suggestion: string, oldText: string): string {
+  if (suggestion.includes("Convert invalid value to string")) {
+    return oldText.replace(
+      /(\w+\()([^")]+)(\);)/,
+      (match, p1, p2, p3) =>
+        `${p1}"${p2}"); // This wraps the invalid value in quotes to correct the error.`
+    );
+  }
   if (suggestion.includes("Convert float to string")) {
     return oldText.replace(
-      /(\w+\()(\d+\.\d+)(\);)/,
-      (match, p1, p2, p3) =>
-        `${p1}"${p2}"${p3} // This converts the float to a string because the data type requires a string.`
+      /(\w+\()(\d+\.\d+)(\)?;?)/,
+      (match, p1, p2) =>
+        `${p1}"${p2}"); // This converts the float to a string because the data type requires a string.`
     );
   }
   if (suggestion.includes("Convert number to string")) {
     return oldText.replace(
-      /(\w+\()(\d+)(\);)/,
-      (match, p1, p2, p3) =>
-        `${p1}"${p2}"${p3} // This converts the number to a string because the data type requires a string.`
+      /(\w+\()(\d+)(\)?;?)/,
+      (match, p1, p2) =>
+        `${p1}"${p2}"); // This converts the number to a string because the data type requires a string.`
     );
   }
   if (suggestion.includes("Convert boolean to string")) {
     return oldText.replace(
-      /(\w+\()(true|false)(\);)/i,
-      (match, p1, p2, p3) =>
-        `${p1}"${p2}"${p3} // This converts the boolean to a string because the data type requires a string.`
+      /(\w+\()(true|false)(\)?;?)/i,
+      (match, p1, p2) =>
+        `${p1}"${p2}"); // This converts the boolean to a string because the data type requires a string.`
     );
   }
   if (suggestion.includes("Convert unquoted text to string")) {
     return oldText.replace(
-      /(\w+\()([a-zA-Z_]\w*)(\);)/,
-      (match, p1, p2, p3) =>
-        `${p1}"${p2}"${p3} // This converts the unquoted text to a string because the data type requires a string.`
+      /(\w+\()([a-zA-Z_]\w*)(\)?;?)/,
+      (match, p1, p2) =>
+        `${p1}"${p2}"); // This converts the unquoted text to a string because the data type requires a string.`
     );
   }
   return oldText;
@@ -102,20 +117,20 @@ function getNewText(
   document: vscode.TextDocument,
   range: vscode.Range
 ): string {
-  const line = document.lineAt(range.start.line).text;
+  const line = document.lineAt(range.start.line).text.trim();
   let newText = line;
 
   if (suggestion.includes("Convert float to string")) {
-    newText = line.replace(/(\w+\()(\d+\.\d+)(\);)/, '$1"$2"$3');
+    newText = line.replace(/(\w+\()(\d+\.\d+)(\)?;?)/, '$1"$2");');
   }
   if (suggestion.includes("Convert number to string")) {
-    newText = line.replace(/(\w+\()(\d+)(\);)/, '$1"$2"$3');
+    newText = line.replace(/(\w+\()(\d+)(\)?;?)/, '$1"$2");');
   }
   if (suggestion.includes("Convert boolean to string")) {
-    newText = line.replace(/(\w+\()(true|false)(\);)/i, '$1"$2"$3');
+    newText = line.replace(/(\w+\()(true|false)(\)?;?)/i, '$1"$2");');
   }
   if (suggestion.includes("Convert unquoted text to string")) {
-    newText = line.replace(/(\w+\()([a-zA-Z_]\w*)(\);)/, '$1"$2"$3');
+    newText = line.replace(/(\w+\()([a-zA-Z_]\w*)(\)?;?)/, '$1"$2");');
   }
 
   return newText;
